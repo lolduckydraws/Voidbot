@@ -236,39 +236,59 @@ function prepareCommandsForRegistration(commands) {
     return truncated;
 }
 
-async function registerGlobalCommands(client, clientId, commands, totalSubcommands) {
+async function registerCommandsToGuild(client, clientId, guildId, commands, totalSubcommands) {
     if (!clientId) {
         throw new Error('CLIENT_ID is required for slash command registration');
+    }
+
+    if (!guildId) {
+        throw new Error('GUILD_ID is required for slash command registration');
     }
 
     if (!client.rest) {
         throw new Error('Discord REST client is not available for slash command registration');
     }
 
-    logger.info(`Preparing to register ${totalSubcommands + commands.length} commands globally`);
+    logger.info(`Preparing to register ${totalSubcommands + commands.length} commands to guild ${guildId}`);
+
     logger.info('Validating commands before registration...');
     validateCommands(commands);
     logger.info('Command validation passed');
 
     const commandsToRegister = prepareCommandsForRegistration(commands);
 
-    if (botConfig.commands?.deleteCommands) {
-        logger.info('Clearing existing global commands before registration...');
-        await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
-    }
+    logger.info(`Clearing existing guild commands...`);
+    await client.rest.put(
+        `/applications/${clientId}/guilds/${guildId}/commands`,
+        { body: [] }
+    );
 
-    logger.info(`Registering ${commandsToRegister.length} global commands...`);
-    await client.rest.put(`/applications/${clientId}/commands`, { body: commandsToRegister });
-    logger.info(`Successfully registered ${commandsToRegister.length} global commands`);
-    logger.info('Global commands may take up to an hour to appear in all servers on first deploy');
+    logger.info(`Registering ${commandsToRegister.length} commands to guild ${guildId}...`);
+
+    await client.rest.put(
+        `/applications/${clientId}/guilds/${guildId}/commands`,
+        { body: commandsToRegister }
+    );
+
+    logger.info(`Successfully registered ${commandsToRegister.length} guild commands`);
 }
 
 export async function registerCommands(client, options = {}) {
-    const { clientId = null } = options;
+    const {
+        clientId = null,
+        guildId = null
+    } = options;
 
     try {
         const { commands, totalSubcommands } = collectCommandPayloads(client);
-        await registerGlobalCommands(client, clientId, commands, totalSubcommands);
+
+        await registerCommandsToGuild(
+            client,
+            clientId,
+            guildId,
+            commands,
+            totalSubcommands
+        );
     } catch (error) {
         logger.error('Error registering commands:', error);
         throw error;
